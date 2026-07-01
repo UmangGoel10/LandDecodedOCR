@@ -4,7 +4,7 @@
 
 **Goal:** Stand up the repo structure for the Bangla/English OCR pipeline described in `docs/superpowers/specs/2026-07-01-bangla-english-ocr-pipeline-design.md` — one focused module per pipeline stage, with typed data models and stub interfaces, but not implementing the actual OCR/LLM/image logic yet.
 
-**Architecture:** A single flat package `ocr_pipeline/` at the repo root (sibling to `main.py`), with one module per pipeline stage from the design doc: ingestion, preprocessing, llm_calls, validation, review, and a top-level `pipeline.py` orchestrator. The two LLM calls (OCR batch, schema-fill) are defined as BAML functions in `baml_src/*.baml`; BAML's generated `baml_client` provides the typed output classes and schema-aligned parsing, so `ocr_pipeline` modules consume those generated types instead of hand-rolled dataclasses. Each stub function still raises `NotImplementedError`, locking in exact contracts for later work without adding files not yet needed.
+**Architecture:** A src-layout project: a single flat package `src/ocr_pipeline/` (sibling to `main.py` at the repo root, alongside a top-level `tests/` directory), with one module per pipeline stage from the design doc: ingestion, preprocessing, llm_calls, validation, review, and a top-level `pipeline.py` orchestrator. The two LLM calls (OCR batch, schema-fill) are defined as BAML functions in `baml_src/*.baml` (kept at the repo root, since it holds `.baml` source, not Python); BAML's generator writes the generated `baml_client` package into `src/baml_client` so it installs alongside `ocr_pipeline`. BAML's schema-aligned parsing provides the typed output classes, so `ocr_pipeline` modules consume those generated types instead of hand-rolled dataclasses. Each stub function still raises `NotImplementedError`, locking in exact contracts for later work without adding files not yet needed. `pyproject.toml` gains a `hatchling` build-system pointing at both `src/ocr_pipeline` and `src/baml_client`, so `uv sync` installs the project in editable mode and both packages import normally from anywhere (including `tests/`).
 
 **Tech Stack:** Python >=3.13, uv (dependency management), pytest (testing), BAML (`baml-py`) for LLM function definitions and schema-aligned output parsing.
 
@@ -16,26 +16,46 @@
 - No escalation/re-query loop (per spec) — validation failures route straight to human review.
 - Exactly two LLM call shapes in the design: a batched OCR call and a text-only schema-fill call, each implemented as one BAML function (`ExtractOcrBatch`, `FillSchema`) — do not add more.
 - LLM output parsing/type-coercion is handled by BAML's schema-aligned parser (via the generated `baml_client` types) — do not hand-roll JSON parsing or type coercion for LLM outputs anywhere in `ocr_pipeline`.
-- Keep `ocr_pipeline/` to 6 package files total — do not split further (e.g. no separate `models.py`; data models that aren't BAML-generated live in the module that produces them).
+- Keep `src/ocr_pipeline/` to 6 package files total — do not split further (e.g. no separate `models.py`; data models that aren't BAML-generated live in the module that produces them).
 
 ---
 
 ### Task 1: Project scaffolding & test tooling
 
 **Files:**
-- Create: `ocr_pipeline/__init__.py`
+- Create: `src/ocr_pipeline/__init__.py`
 - Create: `tests/test_package.py`
-- Modify: `pyproject.toml` (via `uv add --dev pytest`)
+- Modify: `pyproject.toml` (via `uv add --dev pytest`, plus a hand-added `[build-system]`/`[tool.hatch...]` block for the src layout)
 
 **Interfaces:**
-- Produces: `ocr_pipeline` importable package, used by every later task and test file.
+- Produces: `ocr_pipeline` importable package (installed editable via the project's own build config), used by every later task and test file.
 
 - [ ] **Step 1: Add pytest as a dev dependency**
 
 Run: `uv add --dev pytest`
 Expected: `pyproject.toml` gains a `[dependency-groups]` / `dev` entry for pytest, and `uv.lock` is created/updated.
 
-- [ ] **Step 2: Write the failing test**
+- [ ] **Step 2: Configure the src-layout build so the project installs editable**
+
+Add this to `pyproject.toml` (this is the one piece of manual editing in this task — everything else goes through `uv add`):
+
+```toml
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ocr_pipeline", "src/baml_client"]
+```
+
+Note: `src/baml_client` does not exist yet (it's generated in Task 2) — that's fine, hatchling only needs the entry to exist by the time a wheel is actually built, and `uv sync` re-resolves/rebuilds automatically as files appear.
+
+- [ ] **Step 3: Re-sync so the project installs itself editable**
+
+Run: `uv sync`
+Expected: exits 0; `landdecoded-x-devsoc` (the project itself) now appears as an editable install in `uv pip list` or `.venv`'s site-packages.
+
+- [ ] **Step 4: Write the failing test**
 
 ```python
 # tests/test_package.py
@@ -46,28 +66,28 @@ def test_package_importable():
     assert ocr_pipeline is not None
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- [ ] **Step 5: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_package.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'ocr_pipeline'`
 
-- [ ] **Step 4: Create the package**
+- [ ] **Step 6: Create the package**
 
 ```python
-# ocr_pipeline/__init__.py
+# src/ocr_pipeline/__init__.py
 ```
 
 Empty file — just a package marker.
 
-- [ ] **Step 5: Run test to verify it passes**
+- [ ] **Step 7: Run test to verify it passes**
 
 Run: `uv run pytest tests/test_package.py -v`
 Expected: PASS (1 passed)
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add pyproject.toml uv.lock ocr_pipeline/__init__.py tests/test_package.py
+git add pyproject.toml uv.lock src/ocr_pipeline/__init__.py tests/test_package.py
 git commit -m "chore: scaffold ocr_pipeline package and pytest tooling"
 ```
 
@@ -79,7 +99,7 @@ git commit -m "chore: scaffold ocr_pipeline package and pytest tooling"
 - Create: `baml_src/generators.baml`
 - Create: `baml_src/clients.baml`
 - Create: `baml_src/ocr.baml`
-- Generated: `baml_client/` (created by `baml-cli generate` — do not hand-write)
+- Generated: `src/baml_client/` (created by `baml-cli generate` — do not hand-write)
 - Create: `tests/test_baml_schema.py`
 - Modify: `pyproject.toml` (via `uv add baml-py`)
 
@@ -112,11 +132,13 @@ Expected: only `baml_src/clients.baml` and `baml_src/generators.baml` remain fro
 // baml_src/generators.baml
 generator target {
     output_type "python/pydantic"
-    output_dir "../"
+    output_dir "../src"
     default_client_mode "sync"
     version "0.203.1"
 }
 ```
+
+Note `output_dir` is `../src`, not `../` — `baml_src/` sits at the repo root, so this places the generated client at `src/baml_client`, matching the src layout and the `packages` list added to `pyproject.toml` in Task 1.
 
 - [ ] **Step 5: Configure the LLM client**
 
@@ -185,7 +207,7 @@ function FillSchema(document_text: string) -> SchemaField[] {
 - [ ] **Step 7: Generate the typed Python client**
 
 Run: `uv run baml-cli generate`
-Expected: creates/updates `baml_client/` at the repo root, containing `types.py` (with `BoundingBox`, `OcrPageResult`, `SchemaField` Pydantic models) and the `b` client object.
+Expected: creates/updates `src/baml_client/`, containing `types.py` (with `BoundingBox`, `OcrPageResult`, `SchemaField` Pydantic models) and the `b` client object.
 
 - [ ] **Step 8: Write the failing tests**
 
@@ -217,7 +239,7 @@ Expected: PASS (2 passed) — constructing these generated Pydantic models doesn
 - [ ] **Step 10: Commit**
 
 ```bash
-git add pyproject.toml uv.lock baml_src/ baml_client/ tests/test_baml_schema.py
+git add pyproject.toml uv.lock baml_src/ src/baml_client/ tests/test_baml_schema.py
 git commit -m "feat: add BAML schema and generated client for OCR batch and schema-fill calls"
 ```
 
@@ -226,7 +248,7 @@ git commit -m "feat: add BAML schema and generated client for OCR batch and sche
 ### Task 3: Ingestion module (page splitting + native text-layer detection)
 
 **Files:**
-- Create: `ocr_pipeline/ingestion.py`
+- Create: `src/ocr_pipeline/ingestion.py`
 - Create: `tests/test_ingestion.py`
 
 **Interfaces:**
@@ -276,7 +298,7 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'ocr_pipeline.ingestio
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# ocr_pipeline/ingestion.py
+# src/ocr_pipeline/ingestion.py
 from dataclasses import dataclass
 
 
@@ -304,7 +326,7 @@ Expected: PASS (3 passed)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add ocr_pipeline/ingestion.py tests/test_ingestion.py
+git add src/ocr_pipeline/ingestion.py tests/test_ingestion.py
 git commit -m "feat: add ingestion module with Page model and stub interfaces"
 ```
 
@@ -313,7 +335,7 @@ git commit -m "feat: add ingestion module with Page model and stub interfaces"
 ### Task 4: Preprocessing module (image cleanup)
 
 **Files:**
-- Create: `ocr_pipeline/preprocessing.py`
+- Create: `src/ocr_pipeline/preprocessing.py`
 - Create: `tests/test_preprocessing.py`
 
 **Interfaces:**
@@ -349,7 +371,7 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'ocr_pipeline.preproce
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# ocr_pipeline/preprocessing.py
+# src/ocr_pipeline/preprocessing.py
 from ocr_pipeline.ingestion import Page
 
 
@@ -366,7 +388,7 @@ Expected: PASS (1 passed)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add ocr_pipeline/preprocessing.py tests/test_preprocessing.py
+git add src/ocr_pipeline/preprocessing.py tests/test_preprocessing.py
 git commit -m "feat: add preprocessing module with stub interface"
 ```
 
@@ -375,7 +397,7 @@ git commit -m "feat: add preprocessing module with stub interface"
 ### Task 5: LLM calls module (wraps BAML OCR batch + schema-fill)
 
 **Files:**
-- Create: `ocr_pipeline/llm_calls.py`
+- Create: `src/ocr_pipeline/llm_calls.py`
 - Create: `tests/test_llm_calls.py`
 
 **Interfaces:**
@@ -415,7 +437,7 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'ocr_pipeline.llm_call
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# ocr_pipeline/llm_calls.py
+# src/ocr_pipeline/llm_calls.py
 from baml_client.types import OcrPageResult, SchemaField
 
 from ocr_pipeline.ingestion import Page
@@ -441,7 +463,7 @@ Expected: PASS (2 passed)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add ocr_pipeline/llm_calls.py tests/test_llm_calls.py
+git add src/ocr_pipeline/llm_calls.py tests/test_llm_calls.py
 git commit -m "feat: add llm_calls module wrapping BAML OCR batch and schema-fill functions"
 ```
 
@@ -450,7 +472,7 @@ git commit -m "feat: add llm_calls module wrapping BAML OCR batch and schema-fil
 ### Task 6: Validation module
 
 **Files:**
-- Create: `ocr_pipeline/validation.py`
+- Create: `src/ocr_pipeline/validation.py`
 - Create: `tests/test_validation.py`
 
 **Interfaces:**
@@ -483,7 +505,7 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'ocr_pipeline.validati
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# ocr_pipeline/validation.py
+# src/ocr_pipeline/validation.py
 from baml_client.types import SchemaField
 
 
@@ -501,7 +523,7 @@ Expected: PASS (1 passed)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add ocr_pipeline/validation.py tests/test_validation.py
+git add src/ocr_pipeline/validation.py tests/test_validation.py
 git commit -m "feat: add validation module with stub interface"
 ```
 
@@ -510,7 +532,7 @@ git commit -m "feat: add validation module with stub interface"
 ### Task 7: Review module (human-in-the-loop queue)
 
 **Files:**
-- Create: `ocr_pipeline/review.py`
+- Create: `src/ocr_pipeline/review.py`
 - Create: `tests/test_review.py`
 
 **Interfaces:**
@@ -552,7 +574,7 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'ocr_pipeline.review'`
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# ocr_pipeline/review.py
+# src/ocr_pipeline/review.py
 from dataclasses import dataclass
 
 from baml_client.types import SchemaField
@@ -578,7 +600,7 @@ Expected: PASS (2 passed)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add ocr_pipeline/review.py tests/test_review.py
+git add src/ocr_pipeline/review.py tests/test_review.py
 git commit -m "feat: add review module with stub interface"
 ```
 
@@ -587,7 +609,7 @@ git commit -m "feat: add review module with stub interface"
 ### Task 8: Pipeline orchestrator
 
 **Files:**
-- Create: `ocr_pipeline/pipeline.py`
+- Create: `src/ocr_pipeline/pipeline.py`
 - Create: `tests/test_pipeline.py`
 
 **Interfaces:**
@@ -616,7 +638,7 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'ocr_pipeline.pipeline
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# ocr_pipeline/pipeline.py
+# src/ocr_pipeline/pipeline.py
 from ocr_pipeline.ingestion import split_pdf_pages
 
 
@@ -642,6 +664,6 @@ Expected: PASS (13 passed) — all tests from Tasks 1-8 pass together.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add ocr_pipeline/pipeline.py tests/test_pipeline.py
+git add src/ocr_pipeline/pipeline.py tests/test_pipeline.py
 git commit -m "feat: add pipeline orchestrator wiring all stages"
 ```
