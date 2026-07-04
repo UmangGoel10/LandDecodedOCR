@@ -1,11 +1,25 @@
 import tempfile
 from pathlib import Path
 
-from fastapi import FastAPI, Response, UploadFile
+import fitz
+from baml_py.errors import BamlError
+from fastapi import FastAPI, Request, Response, UploadFile
+from fastapi.responses import JSONResponse
 
 from ocr_pipeline.pipeline import run_pipeline
 
 app = FastAPI()
+
+
+@app.exception_handler(fitz.FileDataError)
+@app.exception_handler(fitz.EmptyFileError)
+async def handle_invalid_pdf(request: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+
+@app.exception_handler(BamlError)
+async def handle_baml_error(request: Request, exc: BamlError) -> JSONResponse:
+    return JSONResponse(status_code=502, content={"detail": str(exc)})
 
 
 @app.post("/extract")
