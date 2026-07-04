@@ -37,21 +37,46 @@ def get_checks(checks: typing.Dict[CheckName, Check]) -> typing.List[Check]:
 def all_succeeded(checks: typing.Dict[CheckName, Check]) -> bool:
     return all(check.status == "succeeded" for check in get_checks(checks))
 # #########################################################################
-# Generated enums (0)
+# Generated enums (1)
 # #########################################################################
 
+class ConfidenceLevel(str, Enum):
+    LOW = "LOW"
+    MED = "MED"
+    HIGH = "HIGH"
+
 # #########################################################################
-# Generated classes (2)
+# Generated classes (4)
 # #########################################################################
+
+class FieldValue(BaseModel):
+    value: typing.Optional[str] = None
+    confidence: ConfidenceLevel
+
+class LandRecordFields(BaseModel):
+    district: "FieldValue"
+    block: "FieldValue"
+    mouza: "FieldValue"
+    police_station: "FieldValue"
+    registry_location: "FieldValue"
+    plot_no: "FieldValue"
+    deed_no: "FieldValue"
+    registration_year: "FieldValue"
+    registration_month: "FieldValue"
+    registration_day: "FieldValue"
+    total_area: "FieldValue"
+    land_unit: "FieldValue"
+    vendors: "ListFieldValue"
+    vendees: "ListFieldValue"
+    deed_type: "FieldValue"
+
+class ListFieldValue(BaseModel):
+    value: typing.List[str]
+    confidence: ConfidenceLevel
 
 class OcrPageResult(BaseModel):
     page_number: int
     raw_text: str
-
-class SchemaField(BaseModel):
-    field_name: str
-    value: typing.Optional[str] = None
-    confidence: float
 
 # #########################################################################
 # Generated type aliases (0)

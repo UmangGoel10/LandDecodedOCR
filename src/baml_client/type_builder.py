@@ -20,38 +20,277 @@ from .globals import DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIM
 class TypeBuilder(type_builder.TypeBuilder):
     def __init__(self):
         super().__init__(classes=set(
-          ["OcrPageResult","SchemaField",]
+          ["FieldValue","LandRecordFields","ListFieldValue","OcrPageResult",]
         ), enums=set(
-          []
+          ["ConfidenceLevel",]
         ), runtime=DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIME)
 
     # #########################################################################
-    # Generated enums 0
+    # Generated enums 1
     # #########################################################################
+
+    @property
+    def ConfidenceLevel(self) -> "ConfidenceLevelViewer":
+        return ConfidenceLevelViewer(self)
 
 
     # #########################################################################
-    # Generated classes 2
+    # Generated classes 4
     # #########################################################################
+
+    @property
+    def FieldValue(self) -> "FieldValueViewer":
+        return FieldValueViewer(self)
+
+    @property
+    def LandRecordFields(self) -> "LandRecordFieldsViewer":
+        return LandRecordFieldsViewer(self)
+
+    @property
+    def ListFieldValue(self) -> "ListFieldValueViewer":
+        return ListFieldValueViewer(self)
 
     @property
     def OcrPageResult(self) -> "OcrPageResultViewer":
         return OcrPageResultViewer(self)
 
+
+
+# #########################################################################
+# Generated enums 1
+# #########################################################################
+
+class ConfidenceLevelAst:
+    def __init__(self, tb: type_builder.TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.enum("ConfidenceLevel")
+        self._values: typing.Set[str] = set([  "LOW",  "MED",  "HIGH",  ])
+        self._vals = ConfidenceLevelValues(self._bldr, self._values)
+
+    def type(self) -> baml_py.FieldType:
+        return self._bldr.field()
+
     @property
-    def SchemaField(self) -> "SchemaFieldViewer":
-        return SchemaFieldViewer(self)
+    def values(self) -> "ConfidenceLevelValues":
+        return self._vals
+
+
+class ConfidenceLevelViewer(ConfidenceLevelAst):
+    def __init__(self, tb: type_builder.TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_values(self) -> typing.List[typing.Tuple[str, type_builder.EnumValueViewer]]:
+        return [(name, type_builder.EnumValueViewer(self._bldr.value(name))) for name in self._values]
+    
+
+class ConfidenceLevelValues:
+    def __init__(self, enum_bldr: baml_py.EnumBuilder, values: typing.Set[str]):
+        self.__bldr = enum_bldr
+        self.__values = values # type: ignore (we know how to use this private attribute) # noqa: F821
+
+    
+    
+    @property
+    def LOW(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("LOW"))
+    
+    @property
+    def MED(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("MED"))
+    
+    @property
+    def HIGH(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("HIGH"))
+    
+    
 
 
 
 # #########################################################################
-# Generated enums 0
+# Generated classes 4
 # #########################################################################
 
+class FieldValueAst:
+    def __init__(self, tb: type_builder.TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("FieldValue")
+        self._properties: typing.Set[str] = set([  "value",  "confidence",  ])
+        self._props = FieldValueProperties(self._bldr, self._properties)
 
-# #########################################################################
-# Generated classes 2
-# #########################################################################
+    def type(self) -> baml_py.FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "FieldValueProperties":
+        return self._props
+
+
+class FieldValueViewer(FieldValueAst):
+    def __init__(self, tb: type_builder.TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, type_builder.ClassPropertyViewer]]:
+        return [(name, type_builder.ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+    
+
+
+class FieldValueProperties:
+    def __init__(self, bldr: baml_py.ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties # type: ignore (we know how to use this private attribute) # noqa: F821
+
+    
+    
+    @property
+    def value(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("value"))
+    
+    @property
+    def confidence(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("confidence"))
+    
+    
+
+
+class LandRecordFieldsAst:
+    def __init__(self, tb: type_builder.TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("LandRecordFields")
+        self._properties: typing.Set[str] = set([  "district",  "block",  "mouza",  "police_station",  "registry_location",  "plot_no",  "deed_no",  "registration_year",  "registration_month",  "registration_day",  "total_area",  "land_unit",  "vendors",  "vendees",  "deed_type",  ])
+        self._props = LandRecordFieldsProperties(self._bldr, self._properties)
+
+    def type(self) -> baml_py.FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "LandRecordFieldsProperties":
+        return self._props
+
+
+class LandRecordFieldsViewer(LandRecordFieldsAst):
+    def __init__(self, tb: type_builder.TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, type_builder.ClassPropertyViewer]]:
+        return [(name, type_builder.ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+    
+
+
+class LandRecordFieldsProperties:
+    def __init__(self, bldr: baml_py.ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties # type: ignore (we know how to use this private attribute) # noqa: F821
+
+    
+    
+    @property
+    def district(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("district"))
+    
+    @property
+    def block(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("block"))
+    
+    @property
+    def mouza(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("mouza"))
+    
+    @property
+    def police_station(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("police_station"))
+    
+    @property
+    def registry_location(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("registry_location"))
+    
+    @property
+    def plot_no(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("plot_no"))
+    
+    @property
+    def deed_no(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("deed_no"))
+    
+    @property
+    def registration_year(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("registration_year"))
+    
+    @property
+    def registration_month(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("registration_month"))
+    
+    @property
+    def registration_day(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("registration_day"))
+    
+    @property
+    def total_area(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("total_area"))
+    
+    @property
+    def land_unit(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("land_unit"))
+    
+    @property
+    def vendors(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("vendors"))
+    
+    @property
+    def vendees(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("vendees"))
+    
+    @property
+    def deed_type(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("deed_type"))
+    
+    
+
+
+class ListFieldValueAst:
+    def __init__(self, tb: type_builder.TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("ListFieldValue")
+        self._properties: typing.Set[str] = set([  "value",  "confidence",  ])
+        self._props = ListFieldValueProperties(self._bldr, self._properties)
+
+    def type(self) -> baml_py.FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "ListFieldValueProperties":
+        return self._props
+
+
+class ListFieldValueViewer(ListFieldValueAst):
+    def __init__(self, tb: type_builder.TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, type_builder.ClassPropertyViewer]]:
+        return [(name, type_builder.ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+    
+
+
+class ListFieldValueProperties:
+    def __init__(self, bldr: baml_py.ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties # type: ignore (we know how to use this private attribute) # noqa: F821
+
+    
+    
+    @property
+    def value(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("value"))
+    
+    @property
+    def confidence(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("confidence"))
+    
+    
+
 
 class OcrPageResultAst:
     def __init__(self, tb: type_builder.TypeBuilder):
@@ -92,53 +331,6 @@ class OcrPageResultProperties:
     @property
     def raw_text(self) -> type_builder.ClassPropertyViewer:
         return type_builder.ClassPropertyViewer(self.__bldr.property("raw_text"))
-    
-    
-
-
-class SchemaFieldAst:
-    def __init__(self, tb: type_builder.TypeBuilder):
-        _tb = tb._tb # type: ignore (we know how to use this private attribute)
-        self._bldr = _tb.class_("SchemaField")
-        self._properties: typing.Set[str] = set([  "field_name",  "value",  "confidence",  ])
-        self._props = SchemaFieldProperties(self._bldr, self._properties)
-
-    def type(self) -> baml_py.FieldType:
-        return self._bldr.field()
-
-    @property
-    def props(self) -> "SchemaFieldProperties":
-        return self._props
-
-
-class SchemaFieldViewer(SchemaFieldAst):
-    def __init__(self, tb: type_builder.TypeBuilder):
-        super().__init__(tb)
-
-    
-    def list_properties(self) -> typing.List[typing.Tuple[str, type_builder.ClassPropertyViewer]]:
-        return [(name, type_builder.ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
-    
-
-
-class SchemaFieldProperties:
-    def __init__(self, bldr: baml_py.ClassBuilder, properties: typing.Set[str]):
-        self.__bldr = bldr
-        self.__properties = properties # type: ignore (we know how to use this private attribute) # noqa: F821
-
-    
-    
-    @property
-    def field_name(self) -> type_builder.ClassPropertyViewer:
-        return type_builder.ClassPropertyViewer(self.__bldr.property("field_name"))
-    
-    @property
-    def value(self) -> type_builder.ClassPropertyViewer:
-        return type_builder.ClassPropertyViewer(self.__bldr.property("value"))
-    
-    @property
-    def confidence(self) -> type_builder.ClassPropertyViewer:
-        return type_builder.ClassPropertyViewer(self.__bldr.property("confidence"))
     
     
 

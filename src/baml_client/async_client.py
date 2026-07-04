@@ -99,7 +99,7 @@ class BamlAsyncClient:
             return typing.cast(typing.List["types.OcrPageResult"], __result__.cast_to(types, types, stream_types, False, __runtime__))
     async def FillSchema(self, document_text: str,
         baml_options: BamlCallOptions = {},
-    ) -> typing.List["types.SchemaField"]:
+    ) -> types.LandRecordFields:
         # Check if on_tick is provided
         if 'on_tick' in baml_options:
             # Use streaming internally when on_tick is provided
@@ -111,7 +111,7 @@ class BamlAsyncClient:
             __result__ = await self.__options.merge_options(baml_options).call_function_async(function_name="FillSchema", args={
                 "document_text": document_text,
             })
-            return typing.cast(typing.List["types.SchemaField"], __result__.cast_to(types, types, stream_types, False, __runtime__))
+            return typing.cast(types.LandRecordFields, __result__.cast_to(types, types, stream_types, False, __runtime__))
     
 
 
@@ -135,14 +135,14 @@ class BamlStreamClient:
         )
     def FillSchema(self, document_text: str,
         baml_options: BamlCallOptions = {},
-    ) -> baml_py.BamlStream[typing.List["stream_types.SchemaField"], typing.List["types.SchemaField"]]:
+    ) -> baml_py.BamlStream[stream_types.LandRecordFields, types.LandRecordFields]:
         __ctx__, __result__ = self.__options.merge_options(baml_options).create_async_stream(function_name="FillSchema", args={
             "document_text": document_text,
         })
-        return baml_py.BamlStream[typing.List["stream_types.SchemaField"], typing.List["types.SchemaField"]](
+        return baml_py.BamlStream[stream_types.LandRecordFields, types.LandRecordFields](
           __result__,
-          lambda x: typing.cast(typing.List["stream_types.SchemaField"], x.cast_to(types, types, stream_types, True, __runtime__)),
-          lambda x: typing.cast(typing.List["types.SchemaField"], x.cast_to(types, types, stream_types, False, __runtime__)),
+          lambda x: typing.cast(stream_types.LandRecordFields, x.cast_to(types, types, stream_types, True, __runtime__)),
+          lambda x: typing.cast(types.LandRecordFields, x.cast_to(types, types, stream_types, False, __runtime__)),
           __ctx__,
         )
     

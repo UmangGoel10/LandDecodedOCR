@@ -4,7 +4,7 @@
 
 **Goal:** Stand up the repo structure for the Bangla/English OCR pipeline described in `docs/superpowers/specs/2026-07-01-bangla-english-ocr-pipeline-design.md` — one focused module per pipeline stage, with typed data models and stub interfaces, but not implementing the actual OCR/LLM/image logic yet.
 
-**Architecture:** A src-layout project: a single flat package `src/ocr_pipeline/` (sibling to `main.py` at the repo root, alongside a top-level `tests/` directory), with one module per pipeline stage from the design doc: ingestion, preprocessing, llm_calls, validation, review, and a top-level `pipeline.py` orchestrator. The two LLM calls (OCR batch, schema-fill) are defined as BAML functions in `baml_src/*.baml` (kept at the repo root, since it holds `.baml` source, not Python); BAML's generator writes the generated `baml_client` package into `src/baml_client` so it installs alongside `ocr_pipeline`. BAML's schema-aligned parsing provides the typed output classes, so `ocr_pipeline` modules consume those generated types instead of hand-rolled dataclasses. Each stub function still raises `NotImplementedError`, locking in exact contracts for later work without adding files not yet needed. `pyproject.toml` gains a `hatchling` build-system pointing at both `src/ocr_pipeline` and `src/baml_client`, so `uv sync` installs the project in editable mode and both packages import normally from anywhere (including `tests/`).
+**Architecture:** A src-layout project where everything but `tests/` and top-level config lives under `src/`: the package `src/ocr_pipeline/` and the BAML source `src/baml_src/*.baml` sit side by side. `src/ocr_pipeline/` holds only `ingestion.py`, `preprocessing.py`, `review.py`, and a top-level `pipeline.py` orchestrator — there is no `llm_calls.py` wrapper module; `pipeline.py` calls `baml_client.b.ExtractOcrBatch`/`FillSchema` directly. There is no separate `validation.py` either — the per-field business-rule sanity checks (confidence threshold, format checks) live in `review.py` alongside the enqueue logic, since both are about deciding what needs a human look. BAML's generator writes the generated `baml_client` package into `src/baml_client` (relative `output_dir` of `../` from `src/baml_src/`), so it installs alongside `ocr_pipeline`. BAML's schema-aligned parsing provides the typed output classes, so `ocr_pipeline` modules consume those generated types instead of hand-rolled dataclasses. Each stub function still raises `NotImplementedError`, locking in exact contracts for later work without adding files not yet needed. `pyproject.toml` gains a `hatchling` build-system pointing at both `src/ocr_pipeline` and `src/baml_client`, so `uv sync` installs the project in editable mode and both packages import normally from anywhere (including `tests/`).
 
 **Tech Stack:** Python >=3.13, uv (dependency management), pytest (testing), BAML (`baml-py`) for LLM function definitions and schema-aligned output parsing.
 
@@ -14,9 +14,9 @@
 - Use `uv` for all dependency management (`uv add`, `uv add --dev`) — do not hand-edit dependency lists.
 - One fixed schema, single document type (per spec) — no per-doc-type abstraction.
 - No escalation/re-query loop (per spec) — validation failures route straight to human review.
-- Exactly two LLM call shapes in the design: a batched OCR call and a text-only schema-fill call, each implemented as one BAML function (`ExtractOcrBatch`, `FillSchema`) — do not add more.
+- Exactly two LLM call shapes in the design: a batched OCR call and a text-only schema-fill call, each implemented as one BAML function (`ExtractOcrBatch`, `FillSchema`) — do not add more. `pipeline.py` calls `baml_client.b` directly for both; no wrapper module.
 - LLM output parsing/type-coercion is handled by BAML's schema-aligned parser (via the generated `baml_client` types) — do not hand-roll JSON parsing or type coercion for LLM outputs anywhere in `ocr_pipeline`.
-- Keep `src/ocr_pipeline/` to 6 package files total — do not split further (e.g. no separate `models.py`; data models that aren't BAML-generated live in the module that produces them).
+- Keep `src/ocr_pipeline/` to 4 package files total — `ingestion.py`, `preprocessing.py`, `review.py`, `pipeline.py`. No `models.py`, `llm_calls.py`, or `validation.py`; data models that aren't BAML-generated live in the module that produces them, and business-rule field validation lives in `review.py`.
 
 ---
 
@@ -96,54 +96,53 @@ git commit -m "chore: scaffold ocr_pipeline package and pytest tooling"
 ### Task 2: BAML schema & client setup
 
 **Files:**
-- Create: `baml_src/generators.baml`
-- Create: `baml_src/clients.baml`
-- Create: `baml_src/ocr.baml`
+- Create: `src/baml_src/generators.baml`
+- Create: `src/baml_src/clients.baml`
+- Create: `src/baml_src/ocr.baml`
 - Generated: `src/baml_client/` (created by `baml-cli generate` — do not hand-write)
 - Create: `tests/test_baml_schema.py`
 - Modify: `pyproject.toml` (via `uv add baml-py`)
 
 **Interfaces:**
 - Produces:
-  - `baml_client.types.OcrPageResult` (fields: `page_number: int`, `raw_text: str`, `bounding_boxes: list[BoundingBox]`) — consumed by Task 5.
-  - `baml_client.types.BoundingBox` (fields: `x0: int`, `y0: int`, `x1: int`, `y1: int`) — consumed by Task 5.
-  - `baml_client.types.SchemaField` (fields: `field_name: str`, `value: str | None`, `confidence: float`) — consumed by Tasks 5, 6, 7.
-  - `baml_client.b.ExtractOcrBatch(page_images: list[Image]) -> list[OcrPageResult]` — consumed by Task 5.
-  - `baml_client.b.FillSchema(document_text: str) -> list[SchemaField]` — consumed by Task 5.
+  - `baml_client.types.OcrPageResult` (fields: `page_number: int`, `raw_text: str`) — consumed by Task 6 (pipeline).
+  - `baml_client.types.SchemaField` (fields: `field_name: str`, `value: str | None`, `confidence: float`) — consumed by Tasks 5 (review), 6 (pipeline).
+  - `baml_client.b.ExtractOcrBatch(page_images: list[Image]) -> list[OcrPageResult]` — called directly from `pipeline.py` (Task 6).
+  - `baml_client.b.FillSchema(document_text: str) -> list[SchemaField]` — called directly from `pipeline.py` (Task 6).
 
 - [ ] **Step 1: Add the BAML dependency**
 
 Run: `uv add baml-py`
 Expected: `pyproject.toml` gains `baml-py` under `dependencies`, `uv.lock` updated.
 
-- [ ] **Step 2: Initialize the BAML project**
+- [ ] **Step 2: Initialize the BAML project under src/**
 
-Run: `uv run baml-cli init`
-Expected: creates a `baml_src/` directory with starter example `.baml` files (e.g. `baml_src/resume.baml`, `baml_src/clients.baml`, `baml_src/generators.baml`).
+Run: `uv run baml-cli init --dest src`
+Expected: creates `src/baml_src/` with starter example `.baml` files (e.g. `src/baml_src/resume.baml`, `src/baml_src/clients.baml`, `src/baml_src/generators.baml`).
 
 - [ ] **Step 3: Remove the starter example files, keep the generator config**
 
-Run: `rm baml_src/resume.baml` (or whatever example file(s) `init` created besides `clients.baml`/`generators.baml`)
-Expected: only `baml_src/clients.baml` and `baml_src/generators.baml` remain from the starter scaffold.
+Run: `rm src/baml_src/resume.baml` (or whatever example file(s) `init` created besides `clients.baml`/`generators.baml`)
+Expected: only `src/baml_src/clients.baml` and `src/baml_src/generators.baml` remain from the starter scaffold.
 
 - [ ] **Step 4: Configure the generator for sync Python/Pydantic output**
 
 ```baml
-// baml_src/generators.baml
+// src/baml_src/generators.baml
 generator target {
     output_type "python/pydantic"
-    output_dir "../src"
-    default_client_mode "sync"
-    version "0.203.1"
+    output_dir "../"
+    default_client_mode sync
+    version "0.223.0"
 }
 ```
 
-Note `output_dir` is `../src`, not `../` — `baml_src/` sits at the repo root, so this places the generated client at `src/baml_client`, matching the src layout and the `packages` list added to `pyproject.toml` in Task 1.
+Note `output_dir` is `../`, relative to `src/baml_src/` — this places the generated client at `src/baml_client`, matching the src layout and the `packages` list added to `pyproject.toml` in Task 1.
 
 - [ ] **Step 5: Configure the LLM client**
 
 ```baml
-// baml_src/clients.baml
+// src/baml_src/clients.baml
 client<llm> DefaultClient {
   provider anthropic
   options {
@@ -156,18 +155,10 @@ client<llm> DefaultClient {
 - [ ] **Step 6: Define the OCR batch and schema-fill BAML functions**
 
 ```baml
-// baml_src/ocr.baml
-class BoundingBox {
-  x0 int
-  y0 int
-  x1 int
-  y1 int
-}
-
+// src/baml_src/ocr.baml
 class OcrPageResult {
   page_number int
   raw_text string
-  bounding_boxes BoundingBox[]
 }
 
 class SchemaField {
@@ -181,7 +172,7 @@ function ExtractOcrBatch(page_images: image[]) -> OcrPageResult[] {
   prompt #"
     Transcribe each of the following document page images exactly as
     written, preserving mixed Bangla and English text. For each page,
-    return its raw text and bounding boxes for each text line/region.
+    return its raw text.
 
     {{ ctx.output_format }}
   "#
@@ -206,22 +197,20 @@ function FillSchema(document_text: string) -> SchemaField[] {
 
 - [ ] **Step 7: Generate the typed Python client**
 
-Run: `uv run baml-cli generate`
-Expected: creates/updates `src/baml_client/`, containing `types.py` (with `BoundingBox`, `OcrPageResult`, `SchemaField` Pydantic models) and the `b` client object.
+Run: `uv run baml-cli generate --from src/baml_src`
+Expected: creates/updates `src/baml_client/`, containing `types.py` (with `OcrPageResult`, `SchemaField` Pydantic models) and the `b` client object.
 
 - [ ] **Step 8: Write the failing tests**
 
 ```python
 # tests/test_baml_schema.py
-from baml_client.types import BoundingBox, OcrPageResult, SchemaField
+from baml_client.types import OcrPageResult, SchemaField
 
 
 def test_ocr_page_result_fields():
-    box = BoundingBox(x0=0, y0=0, x1=10, y1=10)
-    result = OcrPageResult(page_number=1, raw_text="text", bounding_boxes=[box])
+    result = OcrPageResult(page_number=1, raw_text="text")
     assert result.page_number == 1
     assert result.raw_text == "text"
-    assert result.bounding_boxes == [box]
 
 
 def test_schema_field_fields():
@@ -239,7 +228,7 @@ Expected: PASS (2 passed) — constructing these generated Pydantic models doesn
 - [ ] **Step 10: Commit**
 
 ```bash
-git add pyproject.toml uv.lock baml_src/ src/baml_client/ tests/test_baml_schema.py
+git add pyproject.toml uv.lock src/baml_src/ src/baml_client/ tests/test_baml_schema.py
 git commit -m "feat: add BAML schema and generated client for OCR batch and schema-fill calls"
 ```
 
@@ -254,9 +243,9 @@ git commit -m "feat: add BAML schema and generated client for OCR batch and sche
 **Interfaces:**
 - Consumes: nothing (first stage of the pipeline).
 - Produces:
-  - `Page` dataclass with fields `page_number: int`, `image_bytes: bytes`, `native_text: str | None`, `has_valid_text_layer: bool` — consumed by Tasks 4, 5, 7.
-  - `split_pdf_pages(pdf_path: str) -> list[Page]` — consumed by Task 8.
-  - `is_valid_bangla_text(text: str) -> bool` — consumed by Task 8 (routing decision).
+  - `Page` dataclass with fields `page_number: int`, `image_bytes: bytes`, `native_text: str | None`, `has_valid_text_layer: bool` — consumed by Task 4 (preprocessing) and Task 6 (pipeline).
+  - `split_pdf_pages(pdf_path: str) -> list[Page]` — consumed by Task 6.
+  - `is_valid_bangla_text(text: str) -> bool` — consumed by Task 6 (routing decision).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -340,7 +329,7 @@ git commit -m "feat: add ingestion module with Page model and stub interfaces"
 
 **Interfaces:**
 - Consumes: `Page` from `ocr_pipeline.ingestion`.
-- Produces: `preprocess_image(page: Page) -> bytes` — consumed by Task 5.
+- Produces: `preprocess_image(page: Page) -> bytes` — consumed by Task 6 (pipeline).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -394,152 +383,20 @@ git commit -m "feat: add preprocessing module with stub interface"
 
 ---
 
-### Task 5: LLM calls module (wraps BAML OCR batch + schema-fill)
-
-**Files:**
-- Create: `src/ocr_pipeline/llm_calls.py`
-- Create: `tests/test_llm_calls.py`
-
-**Interfaces:**
-- Consumes:
-  - `Page` from `ocr_pipeline.ingestion`.
-  - `baml_client.types.OcrPageResult`, `baml_client.types.SchemaField` (generated in Task 2).
-- Produces:
-  - `call_ocr_batch(pages: list[Page]) -> list[OcrPageResult]` — consumed by Task 8.
-  - `call_schema_fill(document_text: str) -> list[SchemaField]` — consumed by Task 8.
-
-- [ ] **Step 1: Write the failing tests**
-
-```python
-# tests/test_llm_calls.py
-import pytest
-
-from ocr_pipeline.ingestion import Page
-from ocr_pipeline.llm_calls import call_ocr_batch, call_schema_fill
-
-
-def test_call_ocr_batch_not_implemented():
-    page = Page(page_number=1, image_bytes=b"", native_text=None, has_valid_text_layer=False)
-    with pytest.raises(NotImplementedError):
-        call_ocr_batch([page])
-
-
-def test_call_schema_fill_not_implemented():
-    with pytest.raises(NotImplementedError):
-        call_schema_fill("merged document text")
-```
-
-- [ ] **Step 2: Run tests to verify they fail**
-
-Run: `uv run pytest tests/test_llm_calls.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'ocr_pipeline.llm_calls'`
-
-- [ ] **Step 3: Write minimal implementation**
-
-```python
-# src/ocr_pipeline/llm_calls.py
-from baml_client.types import OcrPageResult, SchemaField
-
-from ocr_pipeline.ingestion import Page
-
-
-def call_ocr_batch(pages: list[Page]) -> list[OcrPageResult]:
-    """Wraps baml_client.b.ExtractOcrBatch; BAML handles the prompt and
-    schema-aligned parsing of the response into OcrPageResult objects."""
-    raise NotImplementedError
-
-
-def call_schema_fill(document_text: str) -> list[SchemaField]:
-    """Wraps baml_client.b.FillSchema; BAML handles the prompt and
-    schema-aligned parsing of the response into SchemaField objects."""
-    raise NotImplementedError
-```
-
-- [ ] **Step 4: Run tests to verify they pass**
-
-Run: `uv run pytest tests/test_llm_calls.py -v`
-Expected: PASS (2 passed)
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add src/ocr_pipeline/llm_calls.py tests/test_llm_calls.py
-git commit -m "feat: add llm_calls module wrapping BAML OCR batch and schema-fill functions"
-```
-
----
-
-### Task 6: Validation module
-
-**Files:**
-- Create: `src/ocr_pipeline/validation.py`
-- Create: `tests/test_validation.py`
-
-**Interfaces:**
-- Consumes: `baml_client.types.SchemaField`.
-- Produces: `validate_field(field: SchemaField) -> bool` — consumed by Task 8.
-
-Note: BAML's schema-aligned parser already guarantees `SchemaField` instances are correctly typed/coerced (e.g. `confidence` is a real `float`). This module is only for business-rule sanity checks (e.g. confidence thresholds, per-field format rules) on top of that — not for re-parsing or re-coercing LLM output.
-
-- [ ] **Step 1: Write the failing test**
-
-```python
-# tests/test_validation.py
-import pytest
-
-from baml_client.types import SchemaField
-from ocr_pipeline.validation import validate_field
-
-
-def test_validate_field_not_implemented():
-    field = SchemaField(field_name="area", value="12.5", confidence=0.4)
-    with pytest.raises(NotImplementedError):
-        validate_field(field)
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `uv run pytest tests/test_validation.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'ocr_pipeline.validation'`
-
-- [ ] **Step 3: Write minimal implementation**
-
-```python
-# src/ocr_pipeline/validation.py
-from baml_client.types import SchemaField
-
-
-def validate_field(field: SchemaField) -> bool:
-    """Business-rule sanity checks (confidence threshold, per-field format
-    rules) on top of BAML's schema-aligned parsing. Returns True if it passes."""
-    raise NotImplementedError
-```
-
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `uv run pytest tests/test_validation.py -v`
-Expected: PASS (1 passed)
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add src/ocr_pipeline/validation.py tests/test_validation.py
-git commit -m "feat: add validation module with stub interface"
-```
-
----
-
-### Task 7: Review module (human-in-the-loop queue)
+### Task 5: Review module (validation + human-in-the-loop queue)
 
 **Files:**
 - Create: `src/ocr_pipeline/review.py`
 - Create: `tests/test_review.py`
 
 **Interfaces:**
-- Consumes: `baml_client.types.SchemaField`.
+- Consumes: `baml_client.types.SchemaField` (generated in Task 2).
 - Produces:
-  - `ReviewItem` dataclass with fields `field: SchemaField`, `source_page: int`, `cropped_image_bytes: bytes | None` — consumed by Task 8.
-  - `enqueue_for_review(item: ReviewItem) -> None` — consumed by Task 8.
+  - `validate_field(field: SchemaField) -> bool` — business-rule sanity check (confidence threshold, per-field format rules) on top of BAML's schema-aligned parsing; consumed by Task 6 (pipeline).
+  - `ReviewItem` dataclass with fields `field: SchemaField`, `source_page: int`, `cropped_image_bytes: bytes | None` — consumed by Task 6.
+  - `enqueue_for_review(item: ReviewItem) -> None` — consumed by Task 6.
+
+Note: BAML's schema-aligned parser already guarantees `SchemaField` instances are correctly typed/coerced (e.g. `confidence` is a real `float`) — `validate_field` is only for business-rule checks on top of that, not re-parsing or re-coercing LLM output.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -548,7 +405,13 @@ git commit -m "feat: add validation module with stub interface"
 import pytest
 
 from baml_client.types import SchemaField
-from ocr_pipeline.review import ReviewItem, enqueue_for_review
+from ocr_pipeline.review import ReviewItem, enqueue_for_review, validate_field
+
+
+def test_validate_field_not_implemented():
+    field = SchemaField(field_name="area", value="12.5", confidence=0.4)
+    with pytest.raises(NotImplementedError):
+        validate_field(field)
 
 
 def test_review_item_dataclass_fields():
@@ -580,6 +443,12 @@ from dataclasses import dataclass
 from baml_client.types import SchemaField
 
 
+def validate_field(field: SchemaField) -> bool:
+    """Business-rule sanity checks (confidence threshold, per-field format
+    rules) on top of BAML's schema-aligned parsing. Returns True if it passes."""
+    raise NotImplementedError
+
+
 @dataclass
 class ReviewItem:
     field: SchemaField
@@ -595,25 +464,25 @@ def enqueue_for_review(item: ReviewItem) -> None:
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `uv run pytest tests/test_review.py -v`
-Expected: PASS (2 passed)
+Expected: PASS (3 passed)
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/ocr_pipeline/review.py tests/test_review.py
-git commit -m "feat: add review module with stub interface"
+git commit -m "feat: add review module with validation and enqueue stub interfaces"
 ```
 
 ---
 
-### Task 8: Pipeline orchestrator
+### Task 6: Pipeline orchestrator
 
 **Files:**
 - Create: `src/ocr_pipeline/pipeline.py`
 - Create: `tests/test_pipeline.py`
 
 **Interfaces:**
-- Consumes: `split_pdf_pages` from `ocr_pipeline.ingestion`.
+- Consumes: `split_pdf_pages` from `ocr_pipeline.ingestion`; `baml_client.b.ExtractOcrBatch`/`FillSchema` directly (no wrapper module).
 - Produces: `run_pipeline(pdf_path: str) -> None` — the pipeline's public entry point, wiring stages in the order defined by the design doc (ingestion → preprocessing → BAML OCR batch call → merge → BAML schema-fill call → validation → review).
 
 - [ ] **Step 1: Write the failing test**
@@ -643,9 +512,9 @@ from ocr_pipeline.ingestion import split_pdf_pages
 
 
 def run_pipeline(pdf_path: str) -> None:
-    """Entry point: split_pdf_pages -> preprocess -> BAML OCR batch call ->
-    merge -> BAML schema-fill call -> validate -> route failures to review.
-    Stages beyond page splitting are not implemented yet.
+    """Entry point: split_pdf_pages -> preprocess -> baml_client.b.ExtractOcrBatch ->
+    merge -> baml_client.b.FillSchema -> validate_field -> route failures to
+    review.enqueue_for_review. Stages beyond page splitting are not implemented yet.
     """
     split_pdf_pages(pdf_path)
     raise NotImplementedError
@@ -659,7 +528,7 @@ Expected: PASS (1 passed)
 - [ ] **Step 5: Run the full test suite**
 
 Run: `uv run pytest -v`
-Expected: PASS (13 passed) — all tests from Tasks 1-8 pass together.
+Expected: PASS (11 passed) — all tests from Tasks 1-6 pass together.
 
 - [ ] **Step 6: Commit**
 

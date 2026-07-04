@@ -31,9 +31,9 @@ class LlmResponseParser:
 
     def FillSchema(
         self, llm_response: str, baml_options: BamlCallOptions = {},
-    ) -> typing.List["types.SchemaField"]:
+    ) -> types.LandRecordFields:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="FillSchema", llm_response=llm_response, mode="request")
-        return typing.cast(typing.List["types.SchemaField"], __result__)
+        return typing.cast(types.LandRecordFields, __result__)
 
     
 
@@ -51,8 +51,8 @@ class LlmStreamParser:
 
     def FillSchema(
         self, llm_response: str, baml_options: BamlCallOptions = {},
-    ) -> typing.List["stream_types.SchemaField"]:
+    ) -> stream_types.LandRecordFields:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="FillSchema", llm_response=llm_response, mode="stream")
-        return typing.cast(typing.List["stream_types.SchemaField"], __result__)
+        return typing.cast(stream_types.LandRecordFields, __result__)
 
     

@@ -23,17 +23,37 @@ class StreamState(BaseModel, typing.Generic[StreamStateValueT]):
     value: StreamStateValueT
     state: typing_extensions.Literal["Pending", "Incomplete", "Complete"]
 # #########################################################################
-# Generated classes (2)
+# Generated classes (4)
 # #########################################################################
+
+class FieldValue(BaseModel):
+    value: typing.Optional[str] = None
+    confidence: typing.Optional[types.ConfidenceLevel] = None
+
+class LandRecordFields(BaseModel):
+    district: typing.Optional["FieldValue"] = None
+    block: typing.Optional["FieldValue"] = None
+    mouza: typing.Optional["FieldValue"] = None
+    police_station: typing.Optional["FieldValue"] = None
+    registry_location: typing.Optional["FieldValue"] = None
+    plot_no: typing.Optional["FieldValue"] = None
+    deed_no: typing.Optional["FieldValue"] = None
+    registration_year: typing.Optional["FieldValue"] = None
+    registration_month: typing.Optional["FieldValue"] = None
+    registration_day: typing.Optional["FieldValue"] = None
+    total_area: typing.Optional["FieldValue"] = None
+    land_unit: typing.Optional["FieldValue"] = None
+    vendors: typing.Optional["ListFieldValue"] = None
+    vendees: typing.Optional["ListFieldValue"] = None
+    deed_type: typing.Optional["FieldValue"] = None
+
+class ListFieldValue(BaseModel):
+    value: typing.List[str]
+    confidence: typing.Optional[types.ConfidenceLevel] = None
 
 class OcrPageResult(BaseModel):
     page_number: typing.Optional[int] = None
     raw_text: typing.Optional[str] = None
-
-class SchemaField(BaseModel):
-    field_name: typing.Optional[str] = None
-    value: typing.Optional[str] = None
-    confidence: typing.Optional[float] = None
 
 # #########################################################################
 # Generated type aliases (0)

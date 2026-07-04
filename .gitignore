@@ -8,3 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Local-only test fixtures (may contain real personal data, never commit)
+tests/fixtures/

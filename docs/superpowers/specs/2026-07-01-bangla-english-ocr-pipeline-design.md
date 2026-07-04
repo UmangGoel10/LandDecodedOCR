@@ -35,8 +35,7 @@ PDF → split pages → [text-layer check]
         validation (type/regex/cross-field sanity checks)
                      ↓
         field fails validation or low confidence?
-           ├─ yes → human review queue (value, confidence, source page,
-           │         cropped source region shown side-by-side)
+           ├─ yes → human review queue (value, confidence, source page)
            └─ no  → accept as-is
 ```
 
@@ -76,23 +75,25 @@ as page/token limits allow (target: 1 call per document; split into more
 only if a document's page count or image size requires it — ≤100 pages per
 document keeps this to a small, bounded number of calls).
 
-Prompt scope: pure transcription. For each page, return:
-- raw transcribed text
-- bounding boxes for text lines/regions
-
-The bounding boxes are captured now (not schema-derived later) because the
-human review UI needs to show a reviewer the cropped source region next to
-a flagged field, without a second vision call.
+Prompt scope: pure transcription. For each page, return the raw transcribed
+text.
 
 This call has no knowledge of the downstream schema — keeps the OCR prompt
 stable even if the schema changes later.
+
+Bounding-box capture for cropped-region review was considered and dropped:
+LLM spatial/bounding-box grounding is unreliable at document scale for dense
+mixed-script text, and nothing in the current design consumes it — mapping a
+schema field's value back to a source bounding box would need a matching
+step that isn't designed. Deferred to future work if a review UI need for
+it materializes.
 
 ### 5. Merge
 
 Concatenate the free native-text pages and the Call #1 OCR output, in page
 order, into one full-document text blob (with enough page/position metadata
-retained to map a schema field's value back to a source page + bounding box
-for the review UI).
+retained to map a schema field's value back to a source page for the review
+queue).
 
 ### 6. LLM Call #2 — schema-fill phase
 
@@ -119,10 +120,10 @@ fill), with no conditional extra calls.
 ### 9. Human-in-the-loop review
 
 Any field that fails validation or carries low confidence is queued for
-manual review, showing: the extracted value, its confidence, the source
-page, and the cropped source region (from the Call #1 bounding box) so a
-human can verify or correct it quickly without hunting through the full
-page.
+manual review, showing: the extracted value, its confidence, and the source
+page, so a human can verify or correct it against the source document.
+Cropped-region display (jumping straight to the relevant part of the page)
+is deferred — see Component 4.
 
 ## LLM call budget per document
 

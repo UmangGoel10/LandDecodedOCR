@@ -16,11 +16,19 @@ from . import stream_types
 
 type_map = {
 
+    "types.FieldValue": types.FieldValue,
+    "stream_types.FieldValue": stream_types.FieldValue,
+
+    "types.LandRecordFields": types.LandRecordFields,
+    "stream_types.LandRecordFields": stream_types.LandRecordFields,
+
+    "types.ListFieldValue": types.ListFieldValue,
+    "stream_types.ListFieldValue": stream_types.ListFieldValue,
+
     "types.OcrPageResult": types.OcrPageResult,
     "stream_types.OcrPageResult": stream_types.OcrPageResult,
 
-    "types.SchemaField": types.SchemaField,
-    "stream_types.SchemaField": stream_types.SchemaField,
 
+    "types.ConfidenceLevel": types.ConfidenceLevel,
 
 }
